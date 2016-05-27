@@ -24,6 +24,7 @@ import time
 import struct
 from cc2400 import Registers
 from enum import IntEnum
+from itertools import izip
 
 class U1_USB(IntEnum):
     PING               = 0
@@ -321,5 +322,17 @@ class Ubertooth(object):
             data[i*3] = reg & 0xFF
             data[(i*3)+1] = (registers[reg]>>8) & 0xFF
             data[(i*3)+2] = registers[reg] & 0xFF
-        print data
         self.device.ctrl_transfer(0x40, U1_USB.WRITE_REGISTERS, count, 0, data)
+        
+    def cmd_read_all_registers(self,):
+        """
+        Read all CC2400 registers in to a dictionary
+        """
+        MAX_REGISTER = 0x2d
+        length = MAX_REGISTER*3
+        data = self.device.ctrl_transfer(0xc0, U1_USB.READ_ALL_REGISTERS, 0, 0, length)
+        registers = dict(
+            [(reg, (valh<<8)|vall)
+             for reg, valh, vall in izip(*[iter(data)]*3)]
+        )
+        return registers
