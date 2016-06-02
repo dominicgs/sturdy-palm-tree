@@ -100,6 +100,9 @@ class U1_USB(IntEnum):
 
 
 class Ubertooth(object):
+    min_freq = 2400
+    max_freq = 2483
+
     # TODO: add support for multiple ubertooth devices
     def __init__(self, device=True, infile=None, outfile=None):
         if device:
@@ -330,7 +333,7 @@ class Ubertooth(object):
             data[(i*3)+2] = registers[reg] & 0xFF
         self.device.ctrl_transfer(0x40, U1_USB.WRITE_REGISTERS, count, 0, data)
 
-    def cmd_read_all_registers(self,):
+    def cmd_read_all_registers(self):
         """
         Read all CC2400 registers in to a dictionary
         """
@@ -343,3 +346,54 @@ class Ubertooth(object):
              for reg, valh, vall in izip(*[iter(data)]*3)]
         )
         return registers
+
+    def get_freq_range(self):
+        return (self.min_freq, self.max_freq)
+
+    def configure_radio(self, frequency, modulation, freq_deviation=None,
+                        syncword=None):
+        registers = {}
+        min_freq, max_freq = self._dev.get_freq_range()
+        if frequency < min_freq or frequency > max_freq:
+            raise Error("Frequency (%d) is not within supported range (%d-%d)"
+                        % (frequency, min_freq, max_freq))
+        registers[Registers.FSDIV] = frequency - 1
+        registers[Registers.LMTST] = 0x2b22
+        registers[Registers.MANAND] = 0x7fff
+        registers[Registers.MDMTST0] = 0x124b
+        """
+        1      2      4b
+        00 0 1 0 0 10 01001011
+        | | | | |  +---------> AFC_DELTA = ??
+        | | | | +------------> AFC settling = 4 pairs (8 bit preamble)
+        | | | +--------------> no AFC adjust on packet
+        | | +----------------> do not invert data
+        | +------------------> TX IF freq 1 0Hz
+        +--------------------> PRNG off
+
+        ref: CC2400 datasheet page 67
+        AFC settling explained page 41/42
+        """
+        if freq_deviation:
+            mod_dev = int(round(freq_deviation / 3.9062))
+            registers[Registers.MDMCTRL] = mod_dev & 0x3f
+
+        if syncword:
+            registers[Registers.SYNCL] = syncword & 0xffff
+            registers[Registers.SYNCH] = (syncword >> 16) & 0xffff
+
+        # TODO allow these to be set
+        registers[Registers.GRMDM] = 0x0441
+        """
+        0 00 00 1 000 10 0 00 0 1
+          |  |  | |   |  +--------> CRC off
+          |  |  | |   +-----------> sync word: 24 MSB bits of SYNC_WORD
+          |  |  | +---------------> 0 preamble bytes of 01010101
+          |  |  +-----------------> packet mode
+          |  +--------------------> un-buffered mode
+          +-----------------------> sync error bits: 0
+        """
+
+        self.cmd_write_registers(registers)
+        self.cmd_set_paen(state=1)
+        self.cmd_set_hgm(state=1)
