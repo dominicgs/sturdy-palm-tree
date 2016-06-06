@@ -100,6 +100,13 @@ class U1_USB(IntEnum):
     READ_ALL_REGISTERS = 66
 
 
+class U1_MOD(IntEnum):
+    MOD_BT_BASIC_RATE = 0
+    MOD_BT_LOW_ENERGY = 1
+    MOD_80211_FHSS    = 2
+    MOD_NONE          = 3
+
+
 class Ubertooth(object):
     min_freq = 2400
     max_freq = 2483
@@ -153,13 +160,14 @@ class Ubertooth(object):
             if secs is not None:
                 if time.time() >= start+secs:
                     break
-            pkt = BitArray(bytes=buffer)
-            metadata = pkt.unpack('uint:8, uint:8, uint:8, uint:8, uint:32,'
-                                  'int:8, int:8, int:8, uint:8')
-            metanames = ('pkt_type', 'status', 'channel', 'clkn_high',
-                         'clk100ns', 'rssi_max', 'rssi_min', 'rss_avg',
-                         'rssi_count')
-            yield dict(zip(metanames, metadata)), pkt[112:]
+            if buffer:
+                pkt = BitArray(bytes=buffer)
+                metadata = pkt.unpack('uint:8, uint:8, uint:8, uint:8, uint:32,'
+                                      'int:8, int:8, int:8, uint:8')
+                metanames = ('pkt_type', 'status', 'channel', 'clkn_high',
+                             'clk100ns', 'rssi_max', 'rssi_min', 'rss_avg',
+                             'rssi_count')
+                yield dict(zip(metanames, metadata)), pkt[112:]
 
     def close(self):
         self.device.ctrl_transfer(0x40, U1_USB.STOP)
@@ -263,13 +271,23 @@ class Ubertooth(object):
         # stop ubertooth
         self.device.ctrl_transfer(0x40, U1_USB.STOP, 0, 0)
 
-    def cmd_set_paen(self, state=-1):
-        # set paen where state ???
+    def cmd_set_paen(self, state=1):
         self.device.ctrl_transfer(0x40, U1_USB.SET_PAEN, state, 0)
 
+    def cmd_get_paen(self):
+        return self.cmd_simple_get(U1_USB.GET_PAEN)
+
     def cmd_set_hgm(self, state=-1):
-        # set hgm where state ???
         self.device.ctrl_transfer(0x40, U1_USB.SET_HGM, state, 0)
+
+    def cmd_get_hgm(self):
+        return self.cmd_simple_get(U1_USB.GET_HGM)
+
+    def cmd_set_modulation(self, modulation=U1_MOD.MOD_NONE):
+        self.device.ctrl_transfer(0x40, U1_USB.SET_MOD, modulation, 0)
+
+    def cmd_get_modulation(self):
+        return self.cmd_simple_get(U1_USB.GET_MOD)
 
     def cmd_flash(self):
         # flash mode
@@ -364,19 +382,19 @@ class Ubertooth(object):
         if frequency < min_freq or frequency > max_freq:
             raise Error("Frequency (%d) is not within supported range (%d-%d)"
                         % (frequency, min_freq, max_freq))
-        # registers[Registers.FSDIV] = frequency - 1
+        registers[Registers.FSDIV] = frequency - 1
         registers[Registers.LMTST] = 0x2b22
         registers[Registers.MANAND] = 0x7fff
         registers[Registers.MDMTST0] = 0x124b
         """
         1      2      4b
         00 0 1 0 0 10 01001011
-        | | | | |  +---------> AFC_DELTA = ??
-        | | | | +------------> AFC settling = 4 pairs (8 bit preamble)
-        | | | +--------------> no AFC adjust on packet
-        | | +----------------> do not invert data
-        | +------------------> TX IF freq 1 0Hz
-        +--------------------> PRNG off
+           | | | | |  +---------> AFC_DELTA = ??
+           | | | | +------------> AFC settling = 4 pairs (8 bit preamble)
+           | | | +--------------> no AFC adjust on packet
+           | | +----------------> do not invert data
+           | +------------------> TX IF freq 1 0Hz
+           +--------------------> PRNG off
 
         ref: CC2400 datasheet page 67
         AFC settling explained page 41/42
@@ -390,7 +408,7 @@ class Ubertooth(object):
             registers[Registers.SYNCH] = (syncword >> 16) & 0xffff
 
         # TODO allow these to be set
-        registers[Registers.GRMDM] = 0x0461
+        registers[Registers.GRMDM] = 0x0101 #0x0461
         """
         0 00 00 1 000 11 0 00 0 1
           |  |  | |   |  |    |---> Modulation: FSK
@@ -402,7 +420,6 @@ class Ubertooth(object):
           +-----------------------> sync error bits: 0
         """
 
-        self.cmd_write_registers(registers)
         self.cmd_set_channel(frequency)
-        self.cmd_set_paen(state=1)
-        self.cmd_set_hgm(state=1)
+        self.cmd_set_modulation(U1_MOD.MOD_NONE)
+        self.cmd_write_registers(registers)
