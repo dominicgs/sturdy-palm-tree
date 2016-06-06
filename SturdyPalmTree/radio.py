@@ -40,5 +40,12 @@ class Radio(object):
     def get_device(self):
         return self._dev
 
-    def configure_radio(**kwargs):
+    def configure_radio(self, **kwargs):
         self._dev.configure_radio(**kwargs)
+
+    def rx_pkts(self):
+        try:
+            for buf in self._dev.rx_stream():
+                yield buf
+        except KeyboardInterrupt:
+            self._dev.close()

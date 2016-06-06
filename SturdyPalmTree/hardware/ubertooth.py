@@ -27,6 +27,7 @@ import struct
 from cc2400 import Registers
 from enum import IntEnum
 from itertools import izip
+from bitstring import BitArray
 
 
 class U1_USB(IntEnum):
@@ -122,7 +123,7 @@ class Ubertooth(object):
         return device
 
     def set_rx_mode(self, channel=None):
-        self.device.ctrl_transfer(0x40, 1, 0, 0)
+        self.device.ctrl_transfer(0x40, U1_USB.RX_SYMBOLS, 0, 0)
 
     def rx_file_stream(self, count=None, secs=None):
         i = 0
@@ -144,19 +145,21 @@ class Ubertooth(object):
 
     def rx_stream(self, count=None, secs=None):
         self.set_rx_mode()
-        i = 0
         start = time.time()
-        while True:
+        while count is None or count > 0:
             buffer = self.device.read(0x82, 64)
             if count is not None:
-                if i >= count:
-                    print i
-                    break
-                i += 1
+                count -= 1
             if secs is not None:
                 if time.time() >= start+secs:
                     break
-            yield buffer
+            pkt = BitArray(bytes=buffer)
+            metadata = pkt.unpack('uint:8, uint:8, uint:8, uint:8, uint:32,'
+                                  'int:8, int:8, int:8, uint:8')
+            metanames = ('pkt_type', 'status', 'channel', 'clkn_high',
+                         'clk100ns', 'rssi_max', 'rssi_min', 'rss_avg',
+                         'rssi_count')
+            yield dict(zip(metanames, metadata)), pkt[112:]
 
     def close(self):
         self.device.ctrl_transfer(0x40, U1_USB.STOP)
@@ -165,50 +168,44 @@ class Ubertooth(object):
     # Start new stuff 4/27/16
     def cmd_trim_clock(self):
         # trim clock
-        # line 65 ubertooth_control.c
         # THIS IS AN UBERTOOTH ASYNC COMMAND
         pass
 
     def cmd_ping(self):
         # cmd ping
-        # line 75 ubertooth_control.c
         result = self.device.ctrl_transfer(0xc0, U1_USB.PING, 0, 0, 0)
         return result
 
     def cmd_rx_syms(self):
         # already implemented above
         # set rx mode
-        # line 88 ubertooth_control.c
         self.device.ctrl_transfer(0x40, U1_USB.RX_SYMBOLS, 0, 0)
 
     def cmd_specan(self, low_freq=2402, high_freq=2480):
         # specan where low_freq & high_freq is 2402-2480
-        # line 101 ubertooth_control.c
         self.device.ctrl_transfer(0x40, U1_USB.SPECAN, low_freq, high_freq)
+
+    def cmd_simple_get(self, cmd):
+        # get usrled where state is 0-1
+        state = self.device.ctrl_transfer(0xc0, cmd, 0, 0, 1)
+        state = struct.unpack('b', state)[0]
+        return state
 
     def cmd_set_usrled(self, state=0):
         # set usrled where state is 0-1
-        # line 127 ubertooth_control.c
         self.device.ctrl_transfer(0x40, U1_USB.SET_USRLED, state, 0)
 
     def cmd_get_usrled(self):
         # get usrled where state is 0-1
-        # line 140 ubertooth_control.c
-        state = self.device.ctrl_transfer(0xc0, U1_USB.GET_USRLED, 0, 0, 1)
-        state = struct.unpack('b', state)[0]
-        return state
+        return self.cmd_simple_get(U1_USB.GET_USRLED)
 
     def cmd_set_rxled(self, state=0):
         # set rxled where state is 0-1
-        # line 154 ubertooth_control.c
         self.device.ctrl_transfer(0x40, U1_USB.SET_RXLED, state, 0)
 
     def cmd_get_rxled(self):
         # get rxled where state is 0-1
-        # line 167 ubertooth_control.c
-        state = self.device.ctrl_transfer(0xc0, U1_USB.GET_RXLED, 0, 0, 1)
-        state = struct.unpack('b', state)[0]
-        return state
+        return self.cmd_simple_get(U1_USB.GET_RXLED)
 
     def cmd_set_txled(self, state=0):
         # set txled where state is 0-1
@@ -217,10 +214,25 @@ class Ubertooth(object):
 
     def cmd_get_txled(self):
         # get txled where state is 0-1
-        # line 194 ubertooth_control.c
-        state = self.device.ctrl_transfer(0xc0, U1_USB.GET_TXLED, 0, 0, 1)
-        state = struct.unpack('b', state)[0]
-        return state
+        return self.cmd_simple_get(U1_USB.GET_TXLED)
+
+    def cmd_set_1v8(self, state=0):
+        # set txled where state is 0-1
+        self.device.ctrl_transfer(0x40, U1_USB.SET_1V8, state, 0)
+
+    def cmd_get_1v8(self):
+        # get 1v8 where state is 0-1
+        return self.cmd_simple_get(U1_USB.GET_1V8)
+
+    def cmd_set_channel(self, channel=0):
+        # set txled where state is 0-1
+        self.device.ctrl_transfer(0x40, U1_USB.SET_CHANNEL, channel, 0)
+
+    def cmd_get_channel(self):
+        # get txled where state is 0-1
+        channel = self.device.ctrl_transfer(0xc0, U1_USB.GET_CHANNEL, 0, 0, 2)
+        state = struct.unpack('<H', channel)[0]
+        return channel
 
     def cmd_get_partnum(self):
         # get partnum where result=0 for success and part is in hex format
@@ -241,27 +253,22 @@ class Ubertooth(object):
 
     def cmd_set_isp(self):
         # set isp mode (in system programing)
-        # line 319 ubertooth_control.c
         self.device.ctrl_transfer(0x40, U1_USB.SET_ISP, 0, 0)
 
     def cmd_reset(self):
         # reset ubertooth
-        # line 334 ubertooth_control.c
         self.device.ctrl_transfer(0x40, U1_USB.RESET, 0, 0)
 
     def cmd_stop(self):
         # stop ubertooth
-        # line 349 ubertooth_control.c
         self.device.ctrl_transfer(0x40, U1_USB.STOP, 0, 0)
 
     def cmd_set_paen(self, state=-1):
         # set paen where state ???
-        # line 365 ubertooth_control.c
         self.device.ctrl_transfer(0x40, U1_USB.SET_PAEN, state, 0)
 
     def cmd_set_hgm(self, state=-1):
         # set hgm where state ???
-        # line 381 ubertooth_control.c
         self.device.ctrl_transfer(0x40, U1_USB.SET_HGM, state, 0)
 
     def cmd_flash(self):
@@ -273,7 +280,7 @@ class Ubertooth(object):
         # get palevel (power amplifier level)
         # line 427 ubertooth_control.c
         level = self.device.ctrl_transfer(0xc0, U1_USB.GET_PALEVEL, 0, 0, 1)
-        struct.unpack('b', level)[0]
+        return struct.unpack('b', level)[0]
 
     def cmd_set_palevel(self, level=7):
         # set palevel (power amplifier level) where level 0-7
@@ -350,14 +357,14 @@ class Ubertooth(object):
     def get_freq_range(self):
         return (self.min_freq, self.max_freq)
 
-    def configure_radio(self, frequency, modulation, freq_deviation=None,
+    def configure_radio(self, frequency, freq_deviation=None,
                         syncword=None):
         registers = {}
-        min_freq, max_freq = self._dev.get_freq_range()
+        min_freq, max_freq = self.get_freq_range()
         if frequency < min_freq or frequency > max_freq:
             raise Error("Frequency (%d) is not within supported range (%d-%d)"
                         % (frequency, min_freq, max_freq))
-        registers[Registers.FSDIV] = frequency - 1
+        # registers[Registers.FSDIV] = frequency - 1
         registers[Registers.LMTST] = 0x2b22
         registers[Registers.MANAND] = 0x7fff
         registers[Registers.MDMTST0] = 0x124b
@@ -383,11 +390,12 @@ class Ubertooth(object):
             registers[Registers.SYNCH] = (syncword >> 16) & 0xffff
 
         # TODO allow these to be set
-        registers[Registers.GRMDM] = 0x0441
+        registers[Registers.GRMDM] = 0x0461
         """
-        0 00 00 1 000 10 0 00 0 1
+        0 00 00 1 000 11 0 00 0 1
+          |  |  | |   |  |    |---> Modulation: FSK
           |  |  | |   |  +--------> CRC off
-          |  |  | |   +-----------> sync word: 24 MSB bits of SYNC_WORD
+          |  |  | |   +-----------> sync word: 32 MSB bits of SYNC_WORD
           |  |  | +---------------> 0 preamble bytes of 01010101
           |  |  +-----------------> packet mode
           |  +--------------------> un-buffered mode
@@ -395,5 +403,6 @@ class Ubertooth(object):
         """
 
         self.cmd_write_registers(registers)
+        self.cmd_set_channel(frequency)
         self.cmd_set_paen(state=1)
         self.cmd_set_hgm(state=1)
