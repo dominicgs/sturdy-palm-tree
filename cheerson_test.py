@@ -20,14 +20,14 @@ the Free Software Foundation, Inc., 51 Franklin Street,
 Boston, MA 02110-1301, USA."""
 
 from SturdyPalmTree.radio import Radio
+from bitstring import BitStream
 
-
-# input: whitened packet bits, including preamble
+# input: whitened packet bits, starting with sync word
 # output: whitened CRC
 def cx10a_crc(packet):
     crc = 0xb5d2
     # compute CRC over sync word and all data fields
-    for byte in packet.cut(8, 24, 216):
+    for byte in packet.cut(8, 0, 192):
         crc ^= byte.unpack('uint:8')[0] << 8
         for j in range(8):
             if crc & 0x8000:
@@ -38,11 +38,10 @@ def cx10a_crc(packet):
     crc ^= 0x61B1
     return crc
 
-
 def decode_cx10a(packet):
     # u1-u4 are unknown fields
-    preamble, syncword, mode, cid, vid, roll, u1, pitch, u2, throttle, u3, yaw,
-    u4, special, crc, trailer = packet.unpack('uint:24, uint:40, uint:8, '
+    sync, mode, cid, vid, roll, u1, pitch, u2, throttle, u3, yaw, \
+    u4, special, crc, trailer = packet.unpack('uint:40, uint:8, '
         'uint:32, uint:32, uint:12, uint:4, uint:12, uint:4, uint:12, uint:4, '
         'uint:12, uint:4, uint:16, uint:16, uint:8')
 
@@ -65,6 +64,13 @@ def decode_cx10a(packet):
             % (mode, cid, vid, roll, u1, pitch, u2, throttle, u3, yaw, u4,
                special, crc)
 
+def find_cx10a_packet(symbols):
+    # search for whitened sync word
+    if symbols.find('0x2f7d872649', 0, symbols.len - 216):
+        decode_cx10a(symbols[symbols.pos:symbols.pos + 216])
+        return symbols[symbols.pos + 216:]
+    else:
+        return symbols[symbols.len - 216:]
 
 def ubertooth_rx():
     dev = Radio(Radio.UBERTOOTH)
@@ -72,10 +78,12 @@ def ubertooth_rx():
     dev.configure_radio(frequency=2402, freq_deviation=340, syncword=syncword)
     print dev._dev.cmd_get_modulation()
     #raise
+    symbol_stream = BitStream()
     for metadata, pkt in dev.rx_pkts():
-        print metadata
-        print pkt
-
+        #print metadata
+        #print pkt.bin
+        symbol_stream.append(pkt)
+        symbol_stream = find_cx10a_packet(symbol_stream)
 
 if __name__ == "__main__":
     ubertooth_rx()
