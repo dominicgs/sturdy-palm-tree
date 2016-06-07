@@ -154,13 +154,18 @@ class Ubertooth(object):
         self.cmd_rx_generic()
         start = time.time()
         while count is None or count > 0:
-            buffer = self.device.read(0x82, 64)
+            try:
+                buffer = self.device.read(0x82, 64)
+            except usb.core.USBError:
+                # We're just going to ignore this error for now
+                buffer = None
             if count is not None:
                 count -= 1
             if secs is not None:
                 if time.time() >= start+secs:
                     break
             if buffer:
+                print ' '.join(["%02x" % x for x in buffer[14:]])
                 pkt = BitArray(bytes=buffer)
                 metadata = pkt.unpack('uint:8, uint:8, uint:8, uint:8, uint:32,'
                                       'int:8, int:8, int:8, uint:8')
@@ -341,6 +346,12 @@ class Ubertooth(object):
         level = struct.unpack('B', level)[0]
         return level
 
+    def cmd_do_something_reply(self):
+        state = self.device.ctrl_transfer(0xc0, U1_USB.DO_SOMETHING_REPLY, 0, 0, 27)
+        print state
+        #state = struct.unpack('b', state)[0]
+        return state
+
     def cmd_read_register(self, reg):
         value = self.device.ctrl_transfer(0xc0, U1_USB.READ_REGISTER,
                                           reg & 0xFF, 0, 2)
@@ -411,20 +422,24 @@ class Ubertooth(object):
         if syncword:
             registers[Registers.SYNCL] = syncword & 0xffff
             registers[Registers.SYNCH] = (syncword >> 16) & 0xffff
+            packet_mode = 1
+        else:
+            packet_mode = 0
 
-        # TODO allow these to be set
-        registers[Registers.GRMDM] = 0x0461
+        # TODO allow these to be set by args
+        if packet_mode:
+            registers[Registers.GRMDM] = 0x0ce1
+        else:
+            registers[Registers.GRMDM] = 0x00e1
         """
-        0 00 00 1 000 11 0 00 0 1
+        0 00 01 1 001 11 0 00 0 1
           |  |  | |   |  |    |---> Modulation: FSK
           |  |  | |   |  +--------> CRC off
           |  |  | |   +-----------> sync word: 32 MSB bits of SYNC_WORD
-          |  |  | +---------------> 0 preamble bytes of 01010101
+          |  |  | +---------------> 1 preamble bytes of 01010101
           |  |  +-----------------> packet mode
-          |  +--------------------> un-buffered mode
+          |  +--------------------> buffered mode
           +-----------------------> sync error bits: 0
         """
 
-        self.cmd_set_channel(frequency)
-        self.cmd_set_modulation(U1_MOD.MOD_NONE)
         self.cmd_write_registers(registers)
