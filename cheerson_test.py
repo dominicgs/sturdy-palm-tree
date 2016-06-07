@@ -68,7 +68,7 @@ def decode_cx10a(packet):
 
 def ubertooth_rx():
     dev = Radio(Radio.UBERTOOTH)
-    syncword = 0x710f552f
+    syncword = 0x2f7d8726
     dev.configure_radio(frequency=2402, freq_deviation=340, syncword=syncword)
     print dev._dev.cmd_get_modulation()
     #raise

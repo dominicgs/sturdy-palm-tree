@@ -98,6 +98,7 @@ class U1_USB(IntEnum):
     GET_API_VERSION = 64
     WRITE_REGISTERS = 65
     READ_ALL_REGISTERS = 66
+    RX_GENERIC = 67
 
 
 class U1_MOD(IntEnum):
@@ -151,7 +152,7 @@ class Ubertooth(object):
             yield buffer
 
     def rx_stream(self, count=None, secs=None):
-        self.set_rx_mode()
+        self.cmd_rx_generic()
         start = time.time()
         while count is None or count > 0:
             buffer = self.device.read(0x82, 64)
@@ -188,6 +189,11 @@ class Ubertooth(object):
         # already implemented above
         # set rx mode
         self.device.ctrl_transfer(0x40, U1_USB.RX_SYMBOLS, 0, 0)
+
+    def cmd_rx_generic(self):
+        # already implemented above
+        # set rx mode
+        self.device.ctrl_transfer(0x40, U1_USB.RX_GENERIC, 0, 0)
 
     def cmd_specan(self, low_freq=2402, high_freq=2480):
         # specan where low_freq & high_freq is 2402-2480
@@ -408,7 +414,7 @@ class Ubertooth(object):
             registers[Registers.SYNCH] = (syncword >> 16) & 0xffff
 
         # TODO allow these to be set
-        registers[Registers.GRMDM] = 0x0101 #0x0461
+        registers[Registers.GRMDM] = 0x0461
         """
         0 00 00 1 000 11 0 00 0 1
           |  |  | |   |  |    |---> Modulation: FSK
