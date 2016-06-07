@@ -25,12 +25,11 @@ import usb.core
 import time
 import struct
 from cc2400 import Registers
-from enum import IntEnum
 from itertools import izip
 from bitstring import BitArray
 
 
-class U1_USB(IntEnum):
+class U1_USB(object):
     PING = 0
     RX_SYMBOLS = 1
     TX_SYMBOLS = 2
@@ -100,7 +99,7 @@ class U1_USB(IntEnum):
     READ_ALL_REGISTERS = 66
 
 
-class U1_MOD(IntEnum):
+class U1_MOD(object):
     MOD_BT_BASIC_RATE = 0
     MOD_BT_LOW_ENERGY = 1
     MOD_80211_FHSS    = 2
