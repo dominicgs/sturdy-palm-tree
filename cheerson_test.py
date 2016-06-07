@@ -22,15 +22,13 @@ Boston, MA 02110-1301, USA."""
 from SturdyPalmTree.radio import Radio
 import bitstring
 
-whitening = bitstring.Bits('0xe3b14bea85bce5660dae8c881269ee1fc76297d50b79cacc1b5d19')
-
 # input: whitened packet bits, starting with sync word
 # output: whitened CRC
 def cx10a_crc(packet):
     crc = 0xb5d2
     # compute CRC over sync word and all data fields
     for byte in packet.cut(8, 0, 192):
-        crc ^= byte.unpack('uint:8')[0] << 8
+        crc ^= byte.read('uint:8') << 8
         for j in range(8):
             if crc & 0x8000:
                 crc = (crc << 1) ^ 0x1021
@@ -41,6 +39,7 @@ def cx10a_crc(packet):
     return crc
 
 def decode_cx10a(packet):
+    whitening = bitstring.Bits('0xe3b14bea85bce5660dae8c881269ee1fc76297d50b79cacc1b5d19')
     unwhitened = packet ^ whitening
 
     mode = unwhitened[47:39:-1].read('uint:8')
