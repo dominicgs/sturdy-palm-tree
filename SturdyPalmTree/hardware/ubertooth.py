@@ -165,7 +165,7 @@ class Ubertooth(object):
                 if time.time() >= start+secs:
                     break
             if buffer:
-                print ' '.join(["%02x" % x for x in buffer[14:]])
+                #print ' '.join(["%02x" % x for x in buffer[14:46]])
                 pkt = BitArray(bytes=buffer)
                 metadata = pkt.unpack('uint:8, uint:8, uint:8, uint:8, uint:32,'
                                       'int:8, int:8, int:8, uint:8')
