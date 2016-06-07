@@ -20,7 +20,9 @@ the Free Software Foundation, Inc., 51 Franklin Street,
 Boston, MA 02110-1301, USA."""
 
 from SturdyPalmTree.radio import Radio
-from bitstring import BitStream
+import bitstring
+
+whitening = bitstring.Bits('0xe3b14bea85bce5660dae8c881269ee1fc76297d50b79cacc1b5d19')
 
 # input: whitened packet bits, starting with sync word
 # output: whitened CRC
@@ -39,30 +41,22 @@ def cx10a_crc(packet):
     return crc
 
 def decode_cx10a(packet):
-    # u1-u4 are unknown fields
-    sync, mode, cid, vid, roll, u1, pitch, u2, throttle, u3, yaw, \
-    u4, special, crc, trailer = packet.unpack('uint:40, uint:8, '
-        'uint:32, uint:32, uint:12, uint:4, uint:12, uint:4, uint:12, uint:4, '
-        'uint:12, uint:4, uint:16, uint:16, uint:8')
+    unwhitened = packet ^ whitening
 
-    # unwhiten and reverse bits
-    mode = int('{:08b}'.format(mode ^ 0xbc)[::-1], 2)
-    cid = int('{:032b}'.format(cid ^ 0xe5660dae)[::-1], 2)
-    vid = int('{:032b}'.format(vid ^ 0x8c881269)[::-1], 2)
-    roll = int('{:012b}'.format(roll ^ 0xee1)[::-1], 2)
-    u1 = int('{:04b}'.format(u1 ^ 0xf)[::-1], 2)
-    pitch = int('{:012b}'.format(pitch ^ 0xc76)[::-1], 2)
-    u2 = int('{:04b}'.format(u2 ^ 0x2)[::-1], 2)
-    throttle = int('{:012b}'.format(throttle ^ 0x97d)[::-1], 2)
-    u3 = int('{:04b}'.format(u3 ^ 0x5)[::-1], 2)
-    yaw = int('{:012b}'.format(yaw ^ 0x0b7)[::-1], 2)
-    u4 = int('{:04b}'.format(u4 ^ 0x9)[::-1], 2)
-    special = int('{:016b}'.format(special ^ 0xcacc)[::-1], 2)
+    mode = unwhitened[47:39:-1].read('uint:8')
+    cid = unwhitened[79:47:-1].read('uint:32')
+    vid = unwhitened[111:79:-1].read('uint:32')
+    roll = unwhitened[127:111:-1].read('uint:16')
+    pitch = unwhitened[143:127:-1].read('uint:16')
+    throttle = unwhitened[159:143:-1].read('uint:16')
+    yaw = unwhitened[171:159:-1].read('uint:12')
+    flip = unwhitened[175:171:-1].read('uint:4')
+    special = unwhitened[191:175:-1].read('uint:16')
+    crc = packet[192:208].read('uint:16')
 
     if crc == cx10a_crc(packet):
-        print "%02x %08x %08x %4d %01x %4d %01x %4d %01x %4d %01x %04x %04x" \
-            % (mode, cid, vid, roll, u1, pitch, u2, throttle, u3, yaw, u4,
-               special, crc)
+        print "%02x %08x %08x %5d %5d %5d %5d %01x %04x %04x" \
+            % (mode, cid, vid, roll, pitch, throttle, yaw, flip, special, crc)
 
 def find_cx10a_packet(symbols):
     # search for whitened sync word
@@ -78,11 +72,11 @@ def ubertooth_rx():
     dev.configure_radio(frequency=2402, freq_deviation=340, syncword=syncword)
     print dev._dev.cmd_get_modulation()
     #raise
-    symbol_stream = BitStream()
+    symbol_stream = bitstring.ConstBitStream()
     for metadata, pkt in dev.rx_pkts():
         #print metadata
         #print pkt.bin
-        symbol_stream.append(pkt)
+        symbol_stream += pkt
         symbol_stream = find_cx10a_packet(symbol_stream)
 
 if __name__ == "__main__":
