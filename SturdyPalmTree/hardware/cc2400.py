@@ -19,10 +19,9 @@ along with this program; see the file COPYING.  If not, write to
 the Free Software Foundation, Inc., 51 Franklin Street,
 Boston, MA 02110-1301, USA."""
 
-from enum import IntEnum
 
 
-class Registers(IntEnum):
+class Registers(object):
     MAIN = 0x00
     FSCTRL = 0x01
     FSDIV = 0x02
