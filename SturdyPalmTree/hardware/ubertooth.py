@@ -407,7 +407,7 @@ class Ubertooth(object):
             registers[Registers.SYNCH] = (syncword >> 16) & 0xffff
 
         # TODO allow these to be set
-        registers[Registers.GRMDM] = 0x0101 #0x0461
+        registers[Registers.GRMDM] = 0x0461
         """
         0 00 00 1 000 11 0 00 0 1
           |  |  | |   |  |    |---> Modulation: FSK
