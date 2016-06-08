@@ -355,13 +355,13 @@ class Ubertooth(object):
 
     def cmd_generic_tx(self):
         data = array.array("B", [0]*57)
-        data[0] = 0x71
-        data[1] = 0x0f
-        data[2] = 0x55
-        data[3] = 0x2f
-        data[4] = (2402 >> 8) & 0xFF
-        data[5] = 2402 & 0xFF
-        data[6] = 25
+        data[1] = 0x71
+        data[0] = 0x0f
+        data[3] = 0x55
+        data[2] = 0x2f
+        data[5] = (2402 >> 8) & 0xFF
+        data[4] = 2402 & 0xFF
+        data[6] = 27
         data [7] = 0xF
         data[8] = 0x7d
         data[9] = 0x87
@@ -440,7 +440,7 @@ class Ubertooth(object):
         registers[Registers.FSDIV] = frequency - 1
         registers[Registers.LMTST] = 0x2b22
         registers[Registers.MANAND] = 0x7fff
-        registers[Registers.MDMTST0] = 0x124b
+        registers[Registers.MDMTST0] = 0x134b
         """
         1      2      4b
         00 0 1 0 0 10 01001011
@@ -467,11 +467,11 @@ class Ubertooth(object):
 
         # TODO allow these to be set by args
         if packet_mode:
-            registers[Registers.GRMDM] = 0x0ce1
+            registers[Registers.GRMDM] = 0x0f61
         else:
             registers[Registers.GRMDM] = 0x00e1
         """
-        0 00 01 1 001 11 0 00 0 1
+        0 00 01 1 110 11 0 00 0 1
           |  |  | |   |  |    |---> Modulation: FSK
           |  |  | |   |  +--------> CRC off
           |  |  | |   +-----------> sync word: 32 MSB bits of SYNC_WORD

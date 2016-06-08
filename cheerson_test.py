@@ -69,18 +69,16 @@ def ubertooth_rx():
     dev = Radio(Radio.UBERTOOTH)
     syncword = 0x2f7d8726
     dev.configure_radio(frequency=2402, freq_deviation=340, syncword=syncword)
-    import time
-    while True:
-        dev._dev.cmd_generic_tx()
-        time.sleep(1)
-    #symbol_stream = bitstring.ConstBitStream()
-    #for metadata, pkt in dev.rx_pkts():
-        #print metadata
-        #print pkt.bin
-        #symbol_stream += pkt
-        #pkt_found, symbol_stream = find_cx10a_packet(symbol_stream)
-        # if pkt_found:
-        #     dev._dev.cmd_generic_tx()
-
+    # import time
+    # while True:
+    #     dev._dev.cmd_generic_tx()
+    #     time.sleep(1)
+    symbol_stream = bitstring.ConstBitStream()
+    for metadata, pkt in dev.rx_pkts():
+        print metadata
+        print pkt.bin
+        symbol_stream += pkt
+        pkt_found, symbol_stream = find_cx10a_packet(symbol_stream)
+        
 if __name__ == "__main__":
     ubertooth_rx()
