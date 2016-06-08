@@ -98,6 +98,7 @@ class U1_USB(object):
     WRITE_REGISTERS = 65
     READ_ALL_REGISTERS = 66
     RX_GENERIC = 67
+    TX_GENERIC_PACKET = 68
 
 
 class U1_MOD(object):
@@ -351,6 +352,44 @@ class Ubertooth(object):
         print state
         #state = struct.unpack('b', state)[0]
         return state
+
+    def cmd_generic_tx(self):
+        data = array.array("B", [0]*57)
+        data[0] = 0x71
+        data[1] = 0x0f
+        data[2] = 0x55
+        data[3] = 0x2f
+        data[4] = (2402 >> 8) & 0xFF
+        data[5] = 2402 & 0xFF
+        data[6] = 25
+        data [7] = 0xF
+        data[8] = 0x7d
+        data[9] = 0x87
+        data[10] = 0x26
+        data[11] = 0x49
+        data[12] = 0xe9
+        data[13] = 0x7f
+        data[14] = 0x70
+        data[15] = 0x81
+        data[16] = 0xef
+        data[17] = 0x73
+        data[18] = 0x77
+        data[19] = 0xed
+        data[20] = 0x96
+        data[21] = 0xd5
+        data[22] = 0xbf
+        data[23] = 0xfc
+        data[24] = 0xc2
+        data[25] = 0x80
+        data[26] = 0x15
+        data[27] = 0x30
+        data[28] = 0xd9
+        data[29] = 0xca
+        data[30] = 0xcc
+        data[31] = 0x67
+        data[32] = 0x9e
+        data[33] = 0x50
+        self.device.ctrl_transfer(0x40, U1_USB.TX_GENERIC_PACKET, 0, 0, data)
 
     def cmd_read_register(self, reg):
         value = self.device.ctrl_transfer(0xc0, U1_USB.READ_REGISTER,

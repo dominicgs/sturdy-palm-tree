@@ -61,20 +61,26 @@ def find_cx10a_packet(symbols):
     # search for whitened sync word
     if symbols.find('0x2f7d872649', 0, symbols.len - 216):
         decode_cx10a(symbols[symbols.pos:symbols.pos + 216])
-        return symbols[symbols.pos + 216:]
+        return True, symbols[symbols.pos + 216:]
     else:
-        return symbols[symbols.len - 216:]
+        return False, symbols[symbols.len - 216:]
 
 def ubertooth_rx():
     dev = Radio(Radio.UBERTOOTH)
     syncword = 0x2f7d8726
     dev.configure_radio(frequency=2402, freq_deviation=340, syncword=syncword)
-    symbol_stream = bitstring.ConstBitStream()
-    for metadata, pkt in dev.rx_pkts():
+    import time
+    while True:
+        dev._dev.cmd_generic_tx()
+        time.sleep(1)
+    #symbol_stream = bitstring.ConstBitStream()
+    #for metadata, pkt in dev.rx_pkts():
         #print metadata
         #print pkt.bin
-        symbol_stream += pkt
-        symbol_stream = find_cx10a_packet(symbol_stream)
+        #symbol_stream += pkt
+        #pkt_found, symbol_stream = find_cx10a_packet(symbol_stream)
+        # if pkt_found:
+        #     dev._dev.cmd_generic_tx()
 
 if __name__ == "__main__":
     ubertooth_rx()
